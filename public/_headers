@@ -1,0 +1,41 @@
+# Required security headers for SharedArrayBuffer (used by LibreOffice WASM)
+/*
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: cross-origin
+
+# Pre-compressed LibreOffice WASM binary
+/libreoffice-wasm/soffice.wasm.gz
+  Content-Type: application/wasm
+  Content-Encoding: gzip
+  Cache-Control: public, max-age=31536000, immutable
+
+# Pre-compressed LibreOffice WASM data
+/libreoffice-wasm/soffice.data.gz
+  Content-Type: application/octet-stream
+  Content-Encoding: gzip
+  Cache-Control: public, max-age=31536000, immutable
+
+# Cache WASM files aggressively
+/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/wasm
+
+# Service worker
+/sw.js
+  Cache-Control: no-cache
+
+# Split LibreOffice chunks (see scripts/split-large-files.mjs).
+# Chunks are raw byte slices, NOT valid gzip on their own, so they must be
+# served WITHOUT Content-Encoding; the loader concatenates and decompresses.
+/libreoffice-wasm/soffice.wasm.gz.*
+  Content-Type: application/octet-stream
+  Cache-Control: public, max-age=31536000, immutable
+
+/libreoffice-wasm/soffice.data.gz.*
+  Content-Type: application/octet-stream
+  Cache-Control: public, max-age=31536000, immutable
+
+# Chunk manifest — must stay fresh across deploys (chunk counts can change)
+/libreoffice-wasm/chunks.json
+  Cache-Control: public, max-age=300, must-revalidate

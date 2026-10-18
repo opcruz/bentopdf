@@ -27,6 +27,8 @@
     "release:minor": "node scripts/release.js minor",
     "release:major": "node scripts/release.js major",
     "serve:simple": "SIMPLE_MODE=true npm run build && npm run preview -- --port 3000",
+    "build:simple": "powershell -ExecutionPolicy Bypass -File build-simple.ps1",
+    "deploy": "wrangler pages deploy dist --project-name=bentopdf --branch=main",
     "serve": "npm run build && npm run preview -- --port 3000",
     "package": "node scripts/package-dist.js",
     "docs:dev": "vitepress dev docs",
@@ -70,7 +72,8 @@
     "vite-plugin-node-polyfills": "^0.26.0",
     "vitepress": "^1.6.4",
     "vitest": "^4.0.18",
-    "vue": "^3.5.29"
+    "vue": "^3.5.29",
+    "wrangler": "^4.151.1"
   },
   "dependencies": {
     "@fontsource/cedarville-cursive": "^5.2.7",

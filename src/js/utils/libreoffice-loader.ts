@@ -24,16 +24,61 @@ let converterInstance: LibreOfficeConverter | null = null;
 const GZIP_MAGIC_FIRST = 0x1f;
 const GZIP_MAGIC_SECOND = 0x8b;
 
-async function fetchAsDecompressedUrl(
-  url: string,
-  mimeType: string
-): Promise<string> {
+// Files above the host's per-file upload limit (e.g. Cloudflare Pages'
+// 25 MiB) are split into numbered chunks at deploy time by
+// scripts/split-large-files.mjs: soffice.wasm.gz -> soffice.wasm.gz.001 ...
+// A chunks.json manifest written next to them lists the exact part count,
+// so we fetch the parts directly (in parallel) — no 404 probing. Without a
+// manifest entry (local/Docker deploys), the intact file is fetched as-is.
+const manifestCache = new Map<string, Promise<Record<string, number>>>();
+
+function fetchChunkManifest(basePath: string): Promise<Record<string, number>> {
+  if (!manifestCache.has(basePath)) {
+    manifestCache.set(
+      basePath,
+      fetch(`${basePath}chunks.json`)
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({}))
+    );
+  }
+  return manifestCache.get(basePath)!;
+}
+
+async function fetchMaybeChunked(url: string): Promise<Blob> {
+  const fileName = url.split('/').pop() ?? '';
+  const basePath = url.slice(0, url.lastIndexOf('/') + 1);
+  const manifest = await fetchChunkManifest(basePath);
+  const chunkCount = manifest[fileName] ?? 0;
+
+  if (chunkCount > 0) {
+    const parts = await Promise.all(
+      Array.from({ length: chunkCount }, async (_, i) => {
+        const chunkUrl = `${url}.${String(i + 1).padStart(3, '0')}`;
+        const chunkResponse = await fetch(chunkUrl);
+        if (!chunkResponse.ok) {
+          throw new Error(
+            `Failed to fetch chunk ${i + 1}/${chunkCount} of ${fileName}: HTTP ${chunkResponse.status}`
+          );
+        }
+        return chunkResponse.blob();
+      })
+    );
+    return new Blob(parts);
+  }
+
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`);
   }
+  return response.blob();
+}
 
-  let blob = await response.blob();
+async function fetchAsDecompressedUrl(
+  url: string,
+  mimeType: string
+): Promise<string> {
+  let blob = await fetchMaybeChunked(url);
+
   const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
   if (head[0] === GZIP_MAGIC_FIRST && head[1] === GZIP_MAGIC_SECOND) {
     const decompressed = blob
